@@ -13,30 +13,30 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-
 	"fyne.io/fyne/v2/widget"
 )
 
 // Wersja programu
-var versionApp = "0.0.1"
+var versionApp = "0.0.2"
 
 func main() {
-	// Tworzymy aplikację z unikalnym ID (wymóg Fyne do użycia Preferences)
 	a := app.NewWithID("com.lothar-team.fontpreview")
 	w := a.NewWindow("Font Preview v." + versionApp)
 
-	var fontData []uint16  // wczytane dane fontu
-	var glyphW, glyphH int // wymiary pojedynczego znaku
-	currentIndex := 0      // aktualny znak do wyświetlenia
-	scale := 8             // początkowa skala powiększenia
+	var fontData []uint16           // tablica z danymi fontu
+	var glyphW, glyphH int          // wymiary pojedynczego znaku
+	currentIndex := 0               // aktualny indeks znaku
+	scale := 8                      // początkowa skala powiększenia
+	var editWin fyne.Window         // okno edycji znaku (referencja globalna)
+	var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
+	var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
 
-	// Raster dynamiczny – generuje obraz znaków na bieżąco
+	// Raster dynamiczny do wyświetlania znaku
 	imgRaster := canvas.NewRasterWithPixels(func(x, y, wR, hR int) color.Color {
 		if len(fontData) == 0 || glyphW == 0 || glyphH == 0 {
 			return color.White
 		}
 
-		// Przeliczamy współrzędne piksela do współrzędnych w macierzy znaku
 		gx := x / scale
 		gy := y / scale
 		if gx >= glyphW || gy >= glyphH {
@@ -50,24 +50,36 @@ func main() {
 		}
 		return color.White
 	})
-
-	// Minimalny rozmiar obrazu, zostanie nadpisany po wczytaniu fontu
 	imgRaster.SetMinSize(fyne.NewSize(float32(16*scale), float32(16*scale)))
 
-	// Etykieta pokazująca numer aktualnego znaku
+	// Etykieta pokazująca aktualny znak
 	label := widget.NewLabel("Znak: 0")
 
-	// Slider do wyboru znaku
+	// Slider wyboru znaku
 	slider := widget.NewSlider(0, 0)
 	slider.Step = 1
 	slider.OnChanged = func(val float64) {
 		currentIndex = int(val)
 		label.SetText("Znak: " + strconv.Itoa(currentIndex))
-		imgRaster.Refresh() // odświeżamy raster po zmianie znaku
+		imgRaster.Refresh() // odświeżenie podglądu
+		// Jeśli okno edycji jest otwarte, zaktualizuj jego prostokąty
+		if editWin != nil && editGrid != nil && len(rects) == glyphH {
+			for y := 0; y < glyphH; y++ {
+				for x := 0; x < glyphW; x++ {
+					row := fontData[currentIndex*glyphH+y]
+					if (row>>(glyphW-1-x))&1 != 0 {
+						rects[y][x].FillColor = color.Black
+					} else {
+						rects[y][x].FillColor = color.White
+					}
+					rects[y][x].Refresh()
+				}
+			}
+		}
 	}
 
-	// Slider do zmiany skali powiększenia
-	scaleSlider := widget.NewSlider(1, 32) // skala od 1 do 32
+	// Slider zmiany skali
+	scaleSlider := widget.NewSlider(1, 32)
 	scaleSlider.Value = float64(scale)
 	scaleLabel := widget.NewLabel("Skala: " + strconv.Itoa(scale))
 	scaleSlider.OnChanged = func(val float64) {
@@ -79,104 +91,130 @@ func main() {
 		}
 	}
 
-	// Przycisk do wczytania pliku .h z fontem
-	// Dodano ikonke
+	// Przycisk wczytania pliku .h
 	btn := widget.NewButton("  🗂️  Wybierz plik .h", func() {
 		dialog.ShowFileOpen(func(rc fyne.URIReadCloser, _ error) {
 			if rc == nil {
 				return
 			}
-
-			// Zamknięcie pliku po zakończeniu funkcji z obsługą błędu
-			defer func() {
-				if err := rc.Close(); err != nil {
-					fmt.Println("Błąd przy zamykaniu pliku:", err)
-				}
-			}()
-
-			// Wczytanie fontu i wykrycie wymiarów znaków
+			defer rc.Close()
 			nums, gw, gh, err := parseHeaderWithSize(rc)
 			if err != nil {
-				dialog.ShowError(err, w) // w tym miejscu 'w' to okno Fyne
+				dialog.ShowError(err, w)
 				return
 			}
 			fontData = nums
 			glyphW = gw
 			glyphH = gh
 
-			// Aktualizacja slidera do wyboru znaków
+			// Aktualizacja slidera
 			slider.Max = float64(len(fontData)/glyphH - 1)
 			currentIndex = 0
 			slider.Value = 0
 			label.SetText("Znak: 0")
 
-			// Ustawienie minimalnego rozmiaru rastra według wymiarów i skali
 			imgRaster.SetMinSize(fyne.NewSize(float32(glyphW*scale), float32(glyphH*scale)))
 			imgRaster.Refresh()
 		}, w)
 	})
 
-	// Przycisk do edycji wybranego znaku w siatce
+	// Przycisk edycji znaku
 	editBtn := widget.NewButton("✏️ Edytuj znak", func() {
 		if len(fontData) == 0 || glyphW == 0 || glyphH == 0 {
 			return
 		}
 
-		editWin := fyne.CurrentApp().NewWindow(fmt.Sprintf("Edytuj znak %d", currentIndex))
+		// Tworzymy okno edycji aktualnego znaku
+		editWin = fyne.CurrentApp().NewWindow(fmt.Sprintf("Edytuj znak %d", currentIndex))
 
-		grid := container.NewGridWrap(fyne.NewSize(20, 20)) // rozmiar pojedynczego piksela
+		pixelSize := 20.0
+		gridWidth := float32(float64(glyphW) * pixelSize)
+		gridHeight := float32(float64(glyphH) * pixelSize)
 
+		// Kontener bez layoutu
+		editGrid = container.NewWithoutLayout()
+		rects = make([][]*canvas.Rectangle, glyphH)
 		for y := 0; y < glyphH; y++ {
+			rects[y] = make([]*canvas.Rectangle, glyphW)
 			for x := 0; x < glyphW; x++ {
 				xx, yy := x, y
 				rect := canvas.NewRectangle(color.White)
 				rect.StrokeColor = color.Gray{Y: 128}
 				rect.StrokeWidth = 1
-
-				// Funkcja aktualizująca kolor prostokąta wg bitu
-				updateCell := func() {
-					row := fontData[currentIndex*glyphH+yy]
-					if (row>>(glyphW-1-xx))&1 != 0 {
-						rect.FillColor = color.Black
-					} else {
-						rect.FillColor = color.White
-					}
-					rect.Refresh()
+				rect.Resize(fyne.NewSize(float32(pixelSize), float32(pixelSize)))
+				rect.Move(fyne.NewPos(float32(xx)*float32(pixelSize), float32(yy)*float32(pixelSize)))
+				// inicjalizacja koloru
+				row := fontData[currentIndex*glyphH+yy]
+				if (row>>(glyphW-1-xx))&1 != 0 {
+					rect.FillColor = color.Black
 				}
+				rects[yy][xx] = rect
+				editGrid.Add(rect)
 
-				updateCell()
-
-				// Klikalny wrapper
-				btn := widget.NewButton("", func() {
-					row := fontData[currentIndex*glyphH+yy]
-					row ^= 1 << (glyphW - 1 - xx) // toggle bit
-					fontData[currentIndex*glyphH+yy] = row
-					updateCell()
-					imgRaster.Refresh() // odświeżenie głównego podglądu
-				})
-
-				cell := container.NewMax(rect, btn)
-				grid.Add(cell)
+				// Klikalny przycisk nad prostokątem
+				btn := widget.NewButton("", func(xx, yy int) func() {
+					return func() {
+						row := fontData[currentIndex*glyphH+yy]
+						row ^= 1 << (glyphW - 1 - xx)
+						fontData[currentIndex*glyphH+yy] = row
+						// Aktualizacja prostokąta w edycji
+						if (row>>(glyphW-1-xx))&1 != 0 {
+							rects[yy][xx].FillColor = color.Black
+						} else {
+							rects[yy][xx].FillColor = color.White
+						}
+						rects[yy][xx].Refresh()
+						imgRaster.Refresh() // odświeżenie głównego podglądu
+					}
+				}(xx, yy))
+				btn.Importance = widget.LowImportance
+				btn.Resize(fyne.NewSize(float32(pixelSize), float32(pixelSize)))
+				btn.Move(fyne.NewPos(float32(xx)*float32(pixelSize), float32(yy)*float32(pixelSize)))
+				editGrid.Add(btn)
 			}
 		}
 
-		// Przycisk do zamknięcia okna edycji
-		saveBtn := widget.NewButton("Zamknij", func() {
+		// Przycisk zapisu i pokazania znaku w formacie C
+		saveBtn := widget.NewButton("Zamknij / Pokaż w formacie C", func() {
+			var sb strings.Builder
+			sb.WriteString("// Znak edytowany: ASCII ")
+			sb.WriteString(fmt.Sprintf("'%c'\n", currentIndex+32))
+			for y := 0; y < glyphH; y++ {
+				row := fontData[currentIndex*glyphH+y]
+				sb.WriteString(fmt.Sprintf("0x%04X", row))
+				if y < glyphH-1 {
+					sb.WriteString(",")
+				}
+			}
+			sb.WriteString(fmt.Sprintf(", // '%c'\n", currentIndex+32))
+
+			previewWin := fyne.CurrentApp().NewWindow(fmt.Sprintf("Znak %d w formacie C", currentIndex))
+			previewEntry := widget.NewMultiLineEntry()
+			previewEntry.SetText(sb.String())
+			previewEntry.Wrapping = fyne.TextWrapBreak
+			previewWin.SetContent(container.NewVBox(
+				previewEntry,
+				widget.NewButton("Zamknij", func() { previewWin.Close() }),
+			))
+			previewWin.Resize(fyne.NewSize(900, 120))
+			previewWin.Show()
+
 			editWin.Close()
+			editWin = nil
 		})
 
-		content := container.NewVBox(grid, saveBtn)
+		content := container.NewBorder(nil, saveBtn, nil, nil, editGrid)
 		editWin.SetContent(content)
-		editWin.Resize(fyne.NewSize(float32(glyphW*22), float32(glyphH*22+50)))
+		editWin.Resize(fyne.NewSize(gridWidth+2, gridHeight+50))
 		editWin.Show()
 	})
 
-	// Układ GUI
+	// Układ GUI głównego okna
 	content := container.NewVBox(
 		btn,
 		label,
 		slider,
-		editBtn, // nowy przycisk edycji
+		editBtn,
 		scaleLabel,
 		scaleSlider,
 		imgRaster,
@@ -187,7 +225,7 @@ func main() {
 	w.ShowAndRun()
 }
 
-// parseHeaderWithSize odczytuje font z pliku .h i automatycznie wykrywa wymiary znaków
+// parseHeaderWithSize odczytuje font z pliku .h i wykrywa wymiary znaków
 func parseHeaderWithSize(r fyne.URIReadCloser) ([]uint16, int, int, error) {
 	sc := bufio.NewScanner(r)
 	hexRE := regexp.MustCompile(`0x[0-9A-Fa-f]+`)
@@ -199,14 +237,14 @@ func parseHeaderWithSize(r fyne.URIReadCloser) ([]uint16, int, int, error) {
 	for sc.Scan() {
 		line := sc.Text()
 
-		// Wykrycie wymiarów z nazwy tablicy, np. "ALGER_16x16"
+		// Wykrycie wymiarów z nazwy tablicy np. "ALGER_16x16"
 		if glyphW == 0 || glyphH == 0 {
 			match := nameRE.FindStringSubmatch(line)
 			if len(match) > 1 {
-				name := match[1] // np. ALGER_16x16
+				name := match[1]
 				parts := strings.Split(name, "_")
 				if len(parts) > 1 {
-					sizePart := parts[len(parts)-1] // "16x16"
+					sizePart := parts[len(parts)-1]
 					dims := strings.Split(sizePart, "x")
 					if len(dims) == 2 {
 						w, err1 := strconv.Atoi(dims[0])
@@ -220,7 +258,7 @@ func parseHeaderWithSize(r fyne.URIReadCloser) ([]uint16, int, int, error) {
 			}
 		}
 
-		// Parsowanie liczb hex do tablicy uint16
+		// Parsowanie liczb hex do tablicy
 		matches := hexRE.FindAllString(line, -1)
 		for _, m := range matches {
 			v, err := strconv.ParseUint(m, 0, 16)
