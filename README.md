@@ -36,7 +36,7 @@ static const uint16_t AGENCYB_16x16[] = {
 ## Funkcje
 
 - Wczytywanie plików `.h` z tablicami fontów w formacie `uint16_t`.
-- Automatyczne wykrywanie szerokości i wysokości znaków z nazwy tablicy (np. `ALGER_16x16` → 16x16).
+- Automatyczne wykrywanie szerokości i wysokości znaków z nazwy tablicy (np. `AGENCYB_16x16` → 16x16).
 - Dynamiczny podgląd pojedynczych znaków.
 - Slider do wyboru aktualnego znaku.
 - Slider do zmiany skali powiększenia (zoom) od 1 do 32.
