@@ -17,7 +17,7 @@ import (
 )
 
 // Wersja programu
-var versionApp = "0.0.7"
+var versionApp = "0.0.8"
 
 func main() {
 	a := app.NewWithID("com.lothar-team.fontpreview")
@@ -31,6 +31,7 @@ func main() {
 	var editGrid *fyne.Container // kontener z prostokątami w oknie edycji
 	loadedFileLabel := widget.NewLabel("Brak wczytanego pliku")
 	var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
+	var xShift, yShift int          // globalne przesunięcia widoczne dla całego programu
 
 	// Raster dynamiczny do wyświetlania znaku
 	imgRaster := canvas.NewRasterWithPixels(func(x, y, wR, hR int) color.Color {
@@ -40,12 +41,22 @@ func main() {
 
 		gx := x / scale
 		gy := y / scale
-		if gx >= glyphW || gy >= glyphH {
+
+		// sprawdzamy czy piksel mieści się w polu rysowania
+		if gx < 0 || gy < 0 || gx >= glyphW || gy >= glyphH {
 			return color.White
 		}
 
-		row := fontData[currentIndex*glyphH+gy]
-		bit := (row >> (glyphW - 1 - gx)) & 1
+		// --- NOWE: uwzględnienie przesunięcia ---
+		adjX := gx - xShift
+		adjY := gy - yShift
+
+		if adjX < 0 || adjY < 0 || adjX >= glyphW || adjY >= glyphH {
+			return color.White
+		}
+
+		row := fontData[currentIndex*glyphH+adjY]
+		bit := (row >> (glyphW - 1 - adjX)) & 1
 		if bit != 0 {
 			return color.Black
 		}
@@ -178,9 +189,6 @@ func main() {
 			}
 		}
 
-		// Przesunięcie całego znaku w poziomie i pionie
-		xShift, yShift := 0, 0
-
 		// Funkcja pomocnicza do przesunięcia bitów w wierszu
 		shiftRow := func(row uint16, shift int, width int) uint16 {
 			if shift > 0 {
@@ -234,6 +242,26 @@ func main() {
 
 		// Przycisk zapisu i pokazania znaku w formacie C
 		saveBtn := widget.NewButton("Zamknij / Pokaż w formacie C", func() {
+
+			// 🧩 Zastosowanie przesunięć X i Y do fontData
+			if xShift != 0 || yShift != 0 {
+				// przygotuj tymczasowy bufor
+				tmp := make([]uint16, glyphH)
+
+				// przesuwanie w pionie
+				for y := 0; y < glyphH; y++ {
+					newY := y + yShift
+					if newY >= 0 && newY < glyphH {
+						tmp[newY] = shiftRow(fontData[currentIndex*glyphH+y], xShift, glyphW)
+					}
+				}
+
+				// przepisanie przesuniętych danych do fontData
+				for y := 0; y < glyphH; y++ {
+					fontData[currentIndex*glyphH+y] = tmp[y]
+				}
+			}
+
 			var sb strings.Builder
 			sb.WriteString("// Znak edytowany: ASCII ")
 			sb.WriteString(fmt.Sprintf("'%c'\n", currentIndex+32))
@@ -259,6 +287,7 @@ func main() {
 
 			editWin.Close()
 			editWin = nil
+			imgRaster.Refresh()
 		})
 
 		// Umieszczenie gridu i przycisków z suwakami w oknie edycji
