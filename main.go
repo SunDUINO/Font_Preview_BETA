@@ -17,7 +17,7 @@ import (
 )
 
 // Wersja programu
-var versionApp = "0.0.4"
+var versionApp = "0.0.6"
 
 func main() {
 	a := app.NewWithID("com.lothar-team.fontpreview")
@@ -264,12 +264,69 @@ func main() {
 		editWin.Show()
 	})
 
+	saveAllBtn := widget.NewButton("💾 Zapisz cały font do .h", func() {
+		if len(fontData) == 0 {
+			dialog.ShowInformation("Brak danych", "Najpierw wczytaj plik .h", w)
+			return
+		}
+
+		dialog.ShowFileSave(func(uc fyne.URIWriteCloser, _ error) {
+			if uc == nil {
+				return
+			}
+
+			defer func() {
+				_ = uc.Close()
+			}()
+
+			var sb strings.Builder
+
+			// Nagłówek
+			sb.WriteString("// Wygenerowano automatycznie — Font Preview v." + versionApp + "\n")
+			sb.WriteString("// Rozmiar znaków: ")
+			sb.WriteString(fmt.Sprintf("%dx%d\n\n", glyphW, glyphH))
+
+			// Nazwa tablicy
+			sb.WriteString("const uint16_t FONT_" + strconv.Itoa(glyphW) + "x" + strconv.Itoa(glyphH) + "[] = {\n")
+
+			// Zawartość tablicy
+			total := len(fontData) / glyphH
+			for i := 0; i < total; i++ {
+				sb.WriteString("   ")
+
+				for y := 0; y < glyphH; y++ {
+					row := fontData[i*glyphH+y]
+					sb.WriteString(fmt.Sprintf("0x%04X,", row))
+				}
+
+				// komentarz z symbolem ASCII
+				ch := i + 32
+				if ch >= 32 && ch <= 126 {
+					sb.WriteString(fmt.Sprintf("  // '%c'", rune(ch)))
+				} else {
+					sb.WriteString("  //")
+				}
+				sb.WriteString("\n")
+			}
+
+			sb.WriteString("};\n")
+
+			// Zapis
+			if _, err := uc.Write([]byte(sb.String())); err != nil {
+				fmt.Println("błąd zapisu:", err)
+			}
+
+			dialog.ShowInformation("Zapisano", "Plik zapisany pomyślnie.", w)
+		}, w)
+	})
+
 	// Układ GUI głównego okna
 	content := container.NewVBox(
 		btn,
 		label,
 		slider,
 		editBtn,
+		saveAllBtn,
 		scaleLabel,
 		scaleSlider,
 		imgRaster,
