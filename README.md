@@ -1,9 +1,10 @@
 # Font Preview v0.0.beta
 
-Font Preview to prosty podglądacz bitmapowych czcionek w formacie `.h` dla Go, 
+Font Preview to prosty podglądacz bitmapowych czcionek w formacie `.h` w języku Go, 
 z interaktywnym GUI opartym na [Fyne](https://fyne.io/). 
 Program umożliwia przeglądanie znaków, 
-zmianę powiększenia oraz dynamiczne wczytywanie czcionek o różnych rozmiarach.
+zmianę powiększenia oraz dynamiczne wczytywanie czcionek o różnych rozmiarach, 
+zawartych w tablicach font_xxx.h dla mikrokontrolerów 
 
 ---
 
