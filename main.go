@@ -97,7 +97,9 @@ func main() {
 			if rc == nil {
 				return
 			}
-			defer rc.Close()
+			defer func() {
+				_ = rc.Close()
+			}()
 			nums, gw, gh, err := parseHeaderWithSize(rc)
 			if err != nil {
 				dialog.ShowError(err, w)
