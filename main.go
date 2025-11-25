@@ -76,7 +76,8 @@ func main() {
 	}
 
 	// Przycisk do wczytania pliku .h z fontem
-	btn := widget.NewButton("Wybierz plik .h", func() {
+	// Dodano ikonke
+	btn := widget.NewButton("  🗂️  Wybierz plik .h", func() {
 		dialog.ShowFileOpen(func(rc fyne.URIReadCloser, _ error) {
 			if rc == nil {
 				return
@@ -122,7 +123,7 @@ func main() {
 	)
 
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(800, 600))
+	w.Resize(fyne.NewSize(400, 600))
 	w.ShowAndRun()
 }
 
