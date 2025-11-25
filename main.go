@@ -17,18 +17,19 @@ import (
 )
 
 // Wersja programu
-var versionApp = "0.0.6"
+var versionApp = "0.0.7"
 
 func main() {
 	a := app.NewWithID("com.lothar-team.fontpreview")
 	w := a.NewWindow("Font Preview v." + versionApp)
 
-	var fontData []uint16           // tablica z danymi fontu
-	var glyphW, glyphH int          // wymiary pojedynczego znaku
-	currentIndex := 0               // aktualny indeks znaku
-	scale := 8                      // początkowa skala powiększenia
-	var editWin fyne.Window         // okno edycji znaku (referencja globalna)
-	var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
+	var fontData []uint16        // tablica z danymi fontu
+	var glyphW, glyphH int       // wymiary pojedynczego znaku
+	currentIndex := 0            // aktualny indeks znaku
+	scale := 8                   // początkowa skala powiększenia
+	var editWin fyne.Window      // okno edycji znaku (referencja globalna)
+	var editGrid *fyne.Container // kontener z prostokątami w oknie edycji
+	loadedFileLabel := widget.NewLabel("Brak wczytanego pliku")
 	var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
 
 	// Raster dynamiczny do wyświetlania znaku
@@ -97,6 +98,9 @@ func main() {
 			if rc == nil {
 				return
 			}
+			// USTAWIENIE NAZWY WCZYTANEGO PLIKU
+			loadedFileLabel.SetText("Wczytano: " + rc.URI().Name())
+
 			defer func() { _ = rc.Close() }() // jawne ignorowanie błędu
 			nums, gw, gh, err := parseHeaderWithSize(rc)
 			if err != nil {
@@ -323,6 +327,7 @@ func main() {
 	// Układ GUI głównego okna
 	content := container.NewVBox(
 		btn,
+		loadedFileLabel,
 		label,
 		slider,
 		editBtn,
