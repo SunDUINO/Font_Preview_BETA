@@ -13,13 +13,17 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+
 	"fyne.io/fyne/v2/widget"
 )
+
+// Wersja programu
+var versionApp = "0.0.1"
 
 func main() {
 	// Tworzymy aplikację z unikalnym ID (wymóg Fyne do użycia Preferences)
 	a := app.NewWithID("com.lothar-team.fontpreview")
-	w := a.NewWindow("Font Preview v.0.0.beta ")
+	w := a.NewWindow("Font Preview v." + versionApp)
 
 	var fontData []uint16  // wczytane dane fontu
 	var glyphW, glyphH int // wymiary pojedynczego znaku
@@ -112,11 +116,67 @@ func main() {
 		}, w)
 	})
 
+	// Przycisk do edycji wybranego znaku w siatce
+	editBtn := widget.NewButton("✏️ Edytuj znak", func() {
+		if len(fontData) == 0 || glyphW == 0 || glyphH == 0 {
+			return
+		}
+
+		editWin := fyne.CurrentApp().NewWindow(fmt.Sprintf("Edytuj znak %d", currentIndex))
+
+		grid := container.NewGridWrap(fyne.NewSize(20, 20)) // rozmiar pojedynczego piksela
+
+		for y := 0; y < glyphH; y++ {
+			for x := 0; x < glyphW; x++ {
+				xx, yy := x, y
+				rect := canvas.NewRectangle(color.White)
+				rect.StrokeColor = color.Gray{Y: 128}
+				rect.StrokeWidth = 1
+
+				// Funkcja aktualizująca kolor prostokąta wg bitu
+				updateCell := func() {
+					row := fontData[currentIndex*glyphH+yy]
+					if (row>>(glyphW-1-xx))&1 != 0 {
+						rect.FillColor = color.Black
+					} else {
+						rect.FillColor = color.White
+					}
+					rect.Refresh()
+				}
+
+				updateCell()
+
+				// Klikalny wrapper
+				btn := widget.NewButton("", func() {
+					row := fontData[currentIndex*glyphH+yy]
+					row ^= 1 << (glyphW - 1 - xx) // toggle bit
+					fontData[currentIndex*glyphH+yy] = row
+					updateCell()
+					imgRaster.Refresh() // odświeżenie głównego podglądu
+				})
+
+				cell := container.NewMax(rect, btn)
+				grid.Add(cell)
+			}
+		}
+
+		// Przycisk do zamknięcia okna edycji
+		saveBtn := widget.NewButton("Zamknij", func() {
+			editWin.Close()
+		})
+
+		content := container.NewVBox(grid, saveBtn)
+		editWin.SetContent(content)
+		editWin.Resize(fyne.NewSize(float32(glyphW*22), float32(glyphH*22+50)))
+		editWin.Show()
+	})
+
 	// Układ GUI
 	content := container.NewVBox(
 		btn,
 		label,
 		slider,
+		editBtn, // nowy przycisk edycji
 		scaleLabel,
 		scaleSlider,
 		imgRaster,
