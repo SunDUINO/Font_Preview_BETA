@@ -1,3 +1,39 @@
+/* ============================================================================
+
+    Font Preview & Editor Tool
+    Wersja: 0.0.9
+    Autor: Lothar Team / SunRiver
+    Data: 2025
+
+    Opis:
+    ---------------------------------------------------------------------------
+    Ten program umożliwia:
+      • wczytywanie plików czcionek w formacie C (.h) opartych o uint16_t,
+      • automatyczne wykrywanie wymiarów znaków z nazwy tablicy (np. 16x16),
+      • podgląd znaków w formie siatki bitmapowej,
+      • edycję pojedynczego znaku w osobnym oknie,
+      • modyfikację bitów poprzez siatkę prostokątów (klik – zmiana koloru),
+      • skalowanie podglądu znaku,
+      • przesuwanie znaku w osi X/Y (shift) w oknie edycji,
+      • aktualizację w czasie rzeczywistym widoczną w głównym podglądzie,
+      • generowanie fragmentu kodu C dla edytowanego glifu,
+      • zapisywanie całej zmodyfikowanej tablicy jako pliku .h.
+
+    Technologie:
+      • GUI zbudowane w Fyne (Go)
+      • Render bitmapy poprzez canvas.NewRasterWithPixels
+      • Manipulacja tablicą uint16 odzwierciedlającą poziome wiersze glifa
+      • Edycja siatki z wykorzystaniem kontenera bez layoutu (Manual layout)
+
+    Uwagi:
+      • Każdy wiersz znaku to jeden uint16 – bity odpowiadają pikselom.
+      • Edycja zapisuje zmiany bezpośrednio do fontData[].
+      • Obsługuje dowolny rozmiar czcionki (np. 5x8, 8x16, 16x16, 32x32…)
+      • Zmiany są widoczne natychmiast w obu oknach.
+
+
+=========================================================================== */
+
 package main
 
 import (
@@ -17,7 +53,7 @@ import (
 )
 
 // Wersja programu
-var versionApp = "0.0.8"
+var versionApp = "0.0.9"
 
 func main() {
 	a := app.NewWithID("com.lothar-team.fontpreview")
