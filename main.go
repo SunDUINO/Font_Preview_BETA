@@ -176,7 +176,8 @@ func main() {
 		}
 
 		// Tworzymy okno edycji aktualnego znaku
-		editWin = fyne.CurrentApp().NewWindow(fmt.Sprintf("Edytuj znak %d", currentIndex))
+		// Dodano ikonke
+		editWin = fyne.CurrentApp().NewWindow(fmt.Sprintf("✏️  Edytuj znak %d", currentIndex))
 
 		pixelSize := 20.0
 		gridWidth := float32(float64(glyphW) * pixelSize)
@@ -277,7 +278,8 @@ func main() {
 		}
 
 		// Przycisk zapisu i pokazania znaku w formacie C
-		saveBtn := widget.NewButton("Zamknij / Pokaż w formacie C", func() {
+		// Dodano ikonke
+		saveBtn := widget.NewButton("📤  Zamknij / Pokaż w formacie C", func() {
 
 			// 🧩 Zastosowanie przesunięć X i Y do fontData
 			if xShift != 0 || yShift != 0 {
