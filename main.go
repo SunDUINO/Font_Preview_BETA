@@ -53,21 +53,23 @@ import (
 )
 
 // Wersja programu
-var versionApp = "0.0.9"
+var versionApp = "0.0.10"
 
 func main() {
 	a := app.NewWithID("com.lothar-team.fontpreview")
 	w := a.NewWindow("Font Preview v." + versionApp)
 
-	var fontData []uint16        // tablica z danymi fontu
-	var glyphW, glyphH int       // wymiary pojedynczego znaku
-	currentIndex := 0            // aktualny indeks znaku
-	scale := 8                   // początkowa skala powiększenia
-	var editWin fyne.Window      // okno edycji znaku (referencja globalna)
-	var editGrid *fyne.Container // kontener z prostokątami w oknie edycji
-	loadedFileLabel := widget.NewLabel("Brak wczytanego pliku")
+	var fontData []uint16           // tablica z danymi fontu
+	var glyphW, glyphH int          // wymiary pojedynczego znaku
+	var editWin fyne.Window         // okno edycji znaku (referencja globalna)
+	var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
 	var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
 	var xShift, yShift int          // globalne przesunięcia widoczne dla całego programu
+
+	currentIndex := 0 // aktualny indeks znaku
+	scale := 8        // początkowa skala powiększenia
+
+	loadedFileLabel := widget.NewLabel("Brak wczytanego pliku")
 
 	// Raster dynamiczny do wyświetlania znaku
 	imgRaster := canvas.NewRasterWithPixels(func(x, y, wR, hR int) color.Color {
