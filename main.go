@@ -17,7 +17,7 @@ import (
 )
 
 // Wersja programu
-var versionApp = "0.0.2"
+var versionApp = "0.0.4"
 
 func main() {
 	a := app.NewWithID("com.lothar-team.fontpreview")
@@ -97,9 +97,7 @@ func main() {
 			if rc == nil {
 				return
 			}
-			defer func() {
-				_ = rc.Close()
-			}()
+			defer func() { _ = rc.Close() }() // jawne ignorowanie błędu
 			nums, gw, gh, err := parseHeaderWithSize(rc)
 			if err != nil {
 				dialog.ShowError(err, w)
@@ -176,6 +174,60 @@ func main() {
 			}
 		}
 
+		// Przesunięcie całego znaku w poziomie i pionie
+		xShift, yShift := 0, 0
+
+		// Funkcja pomocnicza do przesunięcia bitów w wierszu
+		shiftRow := func(row uint16, shift int, width int) uint16 {
+			if shift > 0 {
+				return (row << shift) & ((1 << width) - 1)
+			} else if shift < 0 {
+				return row >> (-shift)
+			}
+			return row
+		}
+
+		// Funkcja odświeżająca prostokąty w edycji z uwzględnieniem przesunięcia
+		refreshGrid := func() {
+			tmp := make([]uint16, glyphH)
+			for y := 0; y < glyphH; y++ {
+				newY := y + yShift
+				if newY >= 0 && newY < glyphH {
+					tmp[newY] = shiftRow(fontData[currentIndex*glyphH+y], xShift, glyphW)
+				}
+			}
+			for y := 0; y < glyphH; y++ {
+				row := tmp[y]
+				for x := 0; x < glyphW; x++ {
+					if (row>>(glyphW-1-x))&1 != 0 {
+						rects[y][x].FillColor = color.Black
+					} else {
+						rects[y][x].FillColor = color.White
+					}
+					rects[y][x].Refresh()
+				}
+			}
+			imgRaster.Refresh() // odświeżenie głównego podglądu
+		}
+
+		// Suwak X – przesuwanie w poziomie
+		xSlider := widget.NewSlider(float64(-(glyphW - 1)), float64(glyphW-1))
+		xSlider.Value = 0
+		xSlider.Step = 1
+		xSlider.OnChanged = func(val float64) {
+			xShift = int(val)
+			refreshGrid()
+		}
+
+		// Suwak Y – przesuwanie w pionie
+		ySlider := widget.NewSlider(float64(-(glyphH - 1)), float64(glyphH-1))
+		ySlider.Value = 0
+		ySlider.Step = 1
+		ySlider.OnChanged = func(val float64) {
+			yShift = int(val)
+			refreshGrid()
+		}
+
 		// Przycisk zapisu i pokazania znaku w formacie C
 		saveBtn := widget.NewButton("Zamknij / Pokaż w formacie C", func() {
 			var sb strings.Builder
@@ -205,9 +257,10 @@ func main() {
 			editWin = nil
 		})
 
-		content := container.NewBorder(nil, saveBtn, nil, nil, editGrid)
+		// Umieszczenie gridu i przycisków z suwakami w oknie edycji
+		content := container.NewBorder(nil, container.NewVBox(saveBtn, xSlider, ySlider), nil, nil, editGrid)
 		editWin.SetContent(content)
-		editWin.Resize(fyne.NewSize(gridWidth+2, gridHeight+50))
+		editWin.Resize(fyne.NewSize(gridWidth+2, gridHeight+100))
 		editWin.Show()
 	})
 
