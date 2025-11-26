@@ -37,6 +37,7 @@
         - Dodane tłumaczenie PL/EN
         - Poprawki w układzie GUI
         - Poprawki Slidera ZOOM
+        - Dodano tymczasową ikonkę ładowaną z resources/ plik png 256x256
 
 =========================================================================== */
 
@@ -59,7 +60,7 @@ import (
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "0.0.13" // wersja priogramu
+var versionApp = "0.0.14" // wersja priogramu
 
 var fontData []uint16           // tablica z danymi fontu
 var glyphW, glyphH int          // wymiary pojedynczego znaku
@@ -73,10 +74,18 @@ var langBtn *widget.Button      // zmienna dla przycisku języka
 // Dodano ikonke
 func main() {
 
-	a := app.NewWithID("com.lothar-team.fontpreview")   // identyfikator programu
-	w := a.NewWindow("🆎  Font Preview v." + versionApp) // nazwa programu + nr wersji
-	w.Resize(fyne.NewSize(400, 750))                    // ustawienie początkowego rozmiaru
-	w.SetFixedSize(true)                                // blokada zmiany rozmiaru okna
+	a := app.NewWithID("com.lothar-team.fontpreview") // identyfikator programu
+	w := a.NewWindow(" Font Preview v." + versionApp) // nazwa programu + nr wersji
+	w.Resize(fyne.NewSize(400, 750))                  // ustawienie początkowego rozmiaru
+	w.SetFixedSize(true)                              // blokada zmiany rozmiaru okna
+
+	// Załaduj ikonę z pliku
+	icon, err := fyne.LoadResourceFromPath("resources/AB256.png")
+	if err != nil {
+		println("Błąd ładowania ikony:", err.Error())
+	} else {
+		w.SetIcon(icon)
+	}
 
 	currentIndex := 0 // aktualny indeks znaku
 	scale := 7        // początkowa skala powiększenia
