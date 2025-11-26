@@ -2,7 +2,6 @@ package main
 
 // Plik z tłumaczeniami (PL / EN).
 // Zawiera wszystkie klucze używane przez GUI.
-// Możesz rozbudować słownik o kolejne klucze w przyszłości.
 
 var Lang = map[string]map[string]string{
 	"PL": {
