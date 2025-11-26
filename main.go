@@ -1,7 +1,7 @@
 /* ============================================================================
 
     Font Preview & Editor Tool
-    Wersja: 0.0.10
+    Wersja: 0.0.13
     Autor: Lothar Team / SunRiver
            Lothar Team / Gufim
     Data: listopad 2025
@@ -59,7 +59,7 @@ import (
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "0.0.12" // wersja priogramu
+var versionApp = "0.0.13" // wersja priogramu
 
 var fontData []uint16           // tablica z danymi fontu
 var glyphW, glyphH int          // wymiary pojedynczego znaku
@@ -70,12 +70,13 @@ var xShift, yShift int          // globalne przesunięcia widoczne dla całego p
 var langBtn *widget.Button      // zmienna dla przycisku języka
 
 // Główna funkcja programu  ----------------------------------------------------------------
+// Dodano ikonke
 func main() {
 
-	a := app.NewWithID("com.lothar-team.fontpreview") // identyfikator programu
-	w := a.NewWindow("Font Preview v." + versionApp)  // nazwa programu + nr wersji
-	w.Resize(fyne.NewSize(400, 600))                  // ustawienie początkowego rozmiaru
-	w.SetFixedSize(true)                              // blokada zmiany rozmiaru okna
+	a := app.NewWithID("com.lothar-team.fontpreview")   // identyfikator programu
+	w := a.NewWindow("🆎  Font Preview v." + versionApp) // nazwa programu + nr wersji
+	w.Resize(fyne.NewSize(400, 750))                    // ustawienie początkowego rozmiaru
+	w.SetFixedSize(true)                                // blokada zmiany rozmiaru okna
 
 	currentIndex := 0 // aktualny indeks znaku
 	scale := 7        // początkowa skala powiększenia
