@@ -1,7 +1,7 @@
 /* ============================================================================
 
     Font Preview & Editor Tool
-    Wersja: 0.0.9
+    Wersja: 0.0.10
     Autor: Lothar Team / SunRiver
            Lothar Team / Gufim
     Data: listopad 2025
@@ -32,6 +32,12 @@
       • Obsługuje dowolny rozmiar czcionki (np. 5x8, 8x16, 16x16, 32x32…)
       • Zmiany są widoczne natychmiast w obu oknach.
 
+    Nowe:
+      • 26.11.2022
+        - Dodane tłumaczenie PL/EN
+        - Poprawki w układzie GUI
+        - Poprawki Slidera ZOOM
+
 =========================================================================== */
 
 package main
@@ -53,7 +59,7 @@ import (
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "0.0.10" // wersja priogramu
+var versionApp = "0.0.12" // wersja priogramu
 
 var fontData []uint16           // tablica z danymi fontu
 var glyphW, glyphH int          // wymiary pojedynczego znaku
@@ -61,17 +67,20 @@ var editWin fyne.Window         // okno edycji znaku (referencja globalna)
 var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
 var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
 var xShift, yShift int          // globalne przesunięcia widoczne dla całego programu
+var langBtn *widget.Button      // zmienna dla przycisku języka
 
 // Główna funkcja programu  ----------------------------------------------------------------
 func main() {
 
 	a := app.NewWithID("com.lothar-team.fontpreview") // identyfikator programu
-	w := a.NewWindow("Font Preview v." + versionApp)  // nazwa programu + wersja
+	w := a.NewWindow("Font Preview v." + versionApp)  // nazwa programu + nr wersji
+	w.Resize(fyne.NewSize(400, 600))                  // ustawienie początkowego rozmiaru
+	w.SetFixedSize(true)                              // blokada zmiany rozmiaru okna
 
 	currentIndex := 0 // aktualny indeks znaku
-	scale := 8        // początkowa skala powiększenia
+	scale := 7        // początkowa skala powiększenia
 
-	loadedFileLabel := widget.NewLabel("Brak wczytanego pliku") // wyświetlanie nazwy otwartego pliku
+	loadedFileLabel := widget.NewLabel(T("noFile")) // wyświetlanie nazwy otwartego pliku
 
 	// Raster dynamiczny do wyświetlania znaku
 	imgRaster := canvas.NewRasterWithPixels(func(x, y, wR, hR int) color.Color {
@@ -106,14 +115,14 @@ func main() {
 	imgRaster.SetMinSize(fyne.NewSize(float32(16*scale), float32(16*scale)))
 
 	// Etykieta pokazująca numer indeksu aktualnego znaku z tablicy
-	label := widget.NewLabel("Znak: 0")
+	label := widget.NewLabel(T("glyph") + ": 0")
 
 	// Slider wyboru znaku
 	slider := widget.NewSlider(0, 0)
 	slider.Step = 1
 	slider.OnChanged = func(val float64) {
 		currentIndex = int(val)
-		label.SetText("Znak: " + strconv.Itoa(currentIndex))
+		label.SetText(T("glyph") + ": " + strconv.Itoa(currentIndex))
 		imgRaster.Refresh() // odświeżenie podglądu
 		// Jeśli okno edycji jest otwarte, zaktualizuj jego prostokąty
 		if editWin != nil && editGrid != nil && len(rects) == glyphH {
@@ -132,12 +141,12 @@ func main() {
 	}
 
 	// Slider zmiany skali
-	scaleSlider := widget.NewSlider(1, 32)
+	scaleSlider := widget.NewSlider(1, 14)
 	scaleSlider.Value = float64(scale)
-	scaleLabel := widget.NewLabel("Skala: " + strconv.Itoa(scale))
+	scaleLabel := widget.NewLabel(T("scale") + ": " + strconv.Itoa(scale))
 	scaleSlider.OnChanged = func(val float64) {
 		scale = int(val)
-		scaleLabel.SetText("Skala: " + strconv.Itoa(scale))
+		scaleLabel.SetText(T("scale") + ": " + strconv.Itoa(scale))
 		if glyphW > 0 && glyphH > 0 {
 			imgRaster.SetMinSize(fyne.NewSize(float32(glyphW*scale), float32(glyphH*scale)))
 			imgRaster.Refresh()
@@ -145,13 +154,13 @@ func main() {
 	}
 
 	// Przycisk wczytywania pliku .h
-	btn := widget.NewButton("  🗂️  Wybierz plik .h", func() {
+	btn := widget.NewButton(T("chooseFile"), func() {
 		dialog.ShowFileOpen(func(rc fyne.URIReadCloser, _ error) {
 			if rc == nil {
 				return
 			}
 			// -- USTAWIENIE NAZWY WCZYTANEGO PLIKU
-			loadedFileLabel.SetText("Wczytano: " + rc.URI().Name())
+			loadedFileLabel.SetText(T("loaded") + rc.URI().Name())
 
 			defer func() { _ = rc.Close() }() // jawne ignorowanie błędu
 			nums, gw, gh, err := parseHeaderWithSize(rc)
@@ -168,7 +177,7 @@ func main() {
 			slider.Max = float64(len(fontData)/glyphH - 1)
 			currentIndex = 0
 			slider.Value = 0
-			label.SetText("Znak: 0")
+			label.SetText(T("glyph") + ": 0")
 
 			imgRaster.SetMinSize(fyne.NewSize(float32(glyphW*scale), float32(glyphH*scale)))
 			imgRaster.Refresh()
@@ -176,14 +185,14 @@ func main() {
 	})
 
 	// Przycisk edycji znaku
-	editBtn := widget.NewButton("✏️ Edytuj znak", func() {
+	editBtn := widget.NewButton(T("editGlyph"), func() {
 		if len(fontData) == 0 || glyphW == 0 || glyphH == 0 {
 			return
 		}
 
 		// Tworzymy okno edycji aktualnego znaku
 		// Dodano ikonke
-		editWin = fyne.CurrentApp().NewWindow(fmt.Sprintf("✏️  Edytuj znak %d", currentIndex))
+		editWin = fyne.CurrentApp().NewWindow(fmt.Sprintf(T("editWindowTitle"), currentIndex))
 
 		pixelSize := 20.0
 		gridWidth := float32(float64(glyphW) * pixelSize)
@@ -286,7 +295,7 @@ func main() {
 
 		// Przycisk zapisu i pokazania znaku w formacie C
 		// Dodano ikonke
-		saveBtn := widget.NewButton("📤  Zamknij / Pokaż w formacie C", func() {
+		saveBtn := widget.NewButton(T("save"), func() {
 
 			// Zastosowanie przesunięć X i Y do fontData
 			if xShift != 0 || yShift != 0 {
@@ -308,7 +317,7 @@ func main() {
 			}
 
 			var sb strings.Builder
-			sb.WriteString("// Znak edytowany: ASCII ")
+			sb.WriteString(T("editedCharAscii"))
 			sb.WriteString(fmt.Sprintf("'%c'\n", currentIndex+32))
 			for y := 0; y < glyphH; y++ {
 				row := fontData[currentIndex*glyphH+y]
@@ -319,13 +328,13 @@ func main() {
 			}
 			sb.WriteString(fmt.Sprintf(", // '%c'\n", currentIndex+32))
 
-			previewWin := fyne.CurrentApp().NewWindow(fmt.Sprintf("Znak %d w formacie C", currentIndex))
+			previewWin := fyne.CurrentApp().NewWindow(fmt.Sprintf(T("previewTitle"), currentIndex))
 			previewEntry := widget.NewMultiLineEntry()
 			previewEntry.SetText(sb.String())
 			previewEntry.Wrapping = fyne.TextWrapBreak
 			previewWin.SetContent(container.NewVBox(
 				previewEntry,
-				widget.NewButton("Zamknij", func() { previewWin.Close() }),
+				widget.NewButton(T("close"), func() { previewWin.Close() }),
 			))
 			previewWin.Resize(fyne.NewSize(900, 120))
 			previewWin.Show()
@@ -342,9 +351,9 @@ func main() {
 		editWin.Show()
 	})
 
-	saveAllBtn := widget.NewButton("💾 Zapisz cały font do .h", func() {
+	saveAllBtn := widget.NewButton(T("saveFont"), func() {
 		if len(fontData) == 0 {
-			dialog.ShowInformation("Brak danych", "Najpierw wczytaj plik .h", w)
+			dialog.ShowInformation(T("noData"), T("loadFirst"), w)
 			return
 		}
 
@@ -360,8 +369,8 @@ func main() {
 			var sb strings.Builder
 
 			// Nagłówek
-			sb.WriteString("// Wygenerowano automatycznie — Font Preview v." + versionApp + "\n")
-			sb.WriteString("// Rozmiar znaków: ")
+			sb.WriteString(fmt.Sprintf(T("generatedAuto"), versionApp))
+			sb.WriteString(T("charSize"))
 			sb.WriteString(fmt.Sprintf("%dx%d\n\n", glyphW, glyphH))
 
 			// Nazwa tablicy
@@ -391,28 +400,57 @@ func main() {
 
 			// Zapis
 			if _, err := uc.Write([]byte(sb.String())); err != nil {
-				fmt.Println("błąd zapisu:", err)
+				fmt.Println(T("saveError")+": ", err)
 			}
 
-			dialog.ShowInformation("Zapisano", "Plik zapisany pomyślnie.", w)
+			dialog.ShowInformation(T("saved"), T("saved"), w)
 		}, w)
 	})
 
+	// ---> przycisk zmiany jezyka PL/EN ---
+	langBtn = widget.NewButton("🇬🇧", func() {
+		if CurrentLang == "PL" {
+			CurrentLang = "EN"
+			langBtn.SetText("🇵🇱")
+		} else {
+			CurrentLang = "PL"
+			langBtn.SetText("🇬🇧")
+		}
+
+		// Aktualizacja wszystkich tekstów GUI
+		btn.SetText(T("chooseFile"))
+		loadedFileLabel.SetText(T("noFile"))
+		label.SetText(T("glyph") + ": " + strconv.Itoa(currentIndex))
+		editBtn.SetText(T("editGlyph"))
+		scaleLabel.SetText(T("scale") + ": " + strconv.Itoa(scale))
+		saveAllBtn.SetText(T("saveFont"))
+
+	})
+
 	// Układ GUI głównego okna
-	content := container.NewVBox(
-		btn,
-		loadedFileLabel,
-		label,
-		slider,
-		editBtn,
+	bottomBtns := container.NewVBox(
 		saveAllBtn,
-		scaleLabel,
-		scaleSlider,
-		imgRaster,
+		langBtn,
+	)
+	// Zmiana kontenera
+	content := container.NewBorder(
+		nil,        // nic u góry
+		bottomBtns, // przyklejone do dołu
+		nil,        // brak po lewej
+		nil,        // brak po prawej
+		container.NewVBox(
+			btn, // Wczytaj plik
+			loadedFileLabel,
+			label,
+			slider,
+			editBtn,
+			scaleLabel,
+			scaleSlider,
+			container.NewCenter(imgRaster), // glif wyśrodkowany
+		),
 	)
 
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(400, 600))
 	w.ShowAndRun()
 }
 
