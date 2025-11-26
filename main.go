@@ -3,7 +3,8 @@
     Font Preview & Editor Tool
     Wersja: 0.0.9
     Autor: Lothar Team / SunRiver
-    Data: 2025
+           Lothar Team / Gufim
+    Data: listopad 2025
 
     Opis:
     ---------------------------------------------------------------------------
@@ -31,7 +32,6 @@
       • Obsługuje dowolny rozmiar czcionki (np. 5x8, 8x16, 16x16, 32x32…)
       • Zmiany są widoczne natychmiast w obu oknach.
 
-
 =========================================================================== */
 
 package main
@@ -52,24 +52,26 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// Wersja programu
-var versionApp = "0.0.10"
+// -- Zmienne globalne -------------------------------------------------------------------
+var versionApp = "0.0.10" // wersja priogramu
 
+var fontData []uint16           // tablica z danymi fontu
+var glyphW, glyphH int          // wymiary pojedynczego znaku
+var editWin fyne.Window         // okno edycji znaku (referencja globalna)
+var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
+var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
+var xShift, yShift int          // globalne przesunięcia widoczne dla całego programu
+
+// Główna funkcja programu  ----------------------------------------------------------------
 func main() {
-	a := app.NewWithID("com.lothar-team.fontpreview")
-	w := a.NewWindow("Font Preview v." + versionApp)
 
-	var fontData []uint16           // tablica z danymi fontu
-	var glyphW, glyphH int          // wymiary pojedynczego znaku
-	var editWin fyne.Window         // okno edycji znaku (referencja globalna)
-	var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
-	var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
-	var xShift, yShift int          // globalne przesunięcia widoczne dla całego programu
+	a := app.NewWithID("com.lothar-team.fontpreview") // identyfikator programu
+	w := a.NewWindow("Font Preview v." + versionApp)  // nazwa programu + wersja
 
 	currentIndex := 0 // aktualny indeks znaku
 	scale := 8        // początkowa skala powiększenia
 
-	loadedFileLabel := widget.NewLabel("Brak wczytanego pliku")
+	loadedFileLabel := widget.NewLabel("Brak wczytanego pliku") // wyświetlanie nazwy otwartego pliku
 
 	// Raster dynamiczny do wyświetlania znaku
 	imgRaster := canvas.NewRasterWithPixels(func(x, y, wR, hR int) color.Color {
@@ -100,9 +102,10 @@ func main() {
 		}
 		return color.White
 	})
+
 	imgRaster.SetMinSize(fyne.NewSize(float32(16*scale), float32(16*scale)))
 
-	// Etykieta pokazująca aktualny znak
+	// Etykieta pokazująca numer indeksu aktualnego znaku z tablicy
 	label := widget.NewLabel("Znak: 0")
 
 	// Slider wyboru znaku
@@ -141,13 +144,13 @@ func main() {
 		}
 	}
 
-	// Przycisk wczytania pliku .h
+	// Przycisk wczytywania pliku .h
 	btn := widget.NewButton("  🗂️  Wybierz plik .h", func() {
 		dialog.ShowFileOpen(func(rc fyne.URIReadCloser, _ error) {
 			if rc == nil {
 				return
 			}
-			// USTAWIENIE NAZWY WCZYTANEGO PLIKU
+			// -- USTAWIENIE NAZWY WCZYTANEGO PLIKU
 			loadedFileLabel.SetText("Wczytano: " + rc.URI().Name())
 
 			defer func() { _ = rc.Close() }() // jawne ignorowanie błędu
@@ -156,6 +159,7 @@ func main() {
 				dialog.ShowError(err, w)
 				return
 			}
+
 			fontData = nums
 			glyphW = gw
 			glyphH = gh
@@ -261,7 +265,8 @@ func main() {
 			imgRaster.Refresh() // odświeżenie głównego podglądu
 		}
 
-		// Suwak X – przesuwanie w poziomie
+		// --- Slidery do przsuwania znaku :
+		// Suwak X – przesuwanie znaku w poziomie
 		xSlider := widget.NewSlider(float64(-(glyphW - 1)), float64(glyphW-1))
 		xSlider.Value = 0
 		xSlider.Step = 1
@@ -270,7 +275,7 @@ func main() {
 			refreshGrid()
 		}
 
-		// Suwak Y – przesuwanie w pionie
+		// Suwak Y – przesuwanie znaku w pionie
 		ySlider := widget.NewSlider(float64(-(glyphH - 1)), float64(glyphH-1))
 		ySlider.Value = 0
 		ySlider.Step = 1
@@ -283,7 +288,7 @@ func main() {
 		// Dodano ikonke
 		saveBtn := widget.NewButton("📤  Zamknij / Pokaż w formacie C", func() {
 
-			// 🧩 Zastosowanie przesunięć X i Y do fontData
+			// Zastosowanie przesunięć X i Y do fontData
 			if xShift != 0 || yShift != 0 {
 				// przygotuj tymczasowy bufor
 				tmp := make([]uint16, glyphH)
