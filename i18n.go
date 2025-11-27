@@ -25,6 +25,8 @@ var Lang = map[string]map[string]string{
 		"charSize":        "// Rozmiar znaków: ",
 		// błedy
 		"saveError": "Błąd zapisu",
+		// nowe
+		"showGrid": "Pokaż siatkę",
 	},
 	"EN": {
 		"chooseFile":      "  🗂️  Choose .h file",
@@ -47,6 +49,8 @@ var Lang = map[string]map[string]string{
 		"charSize":        "// Character size: ",
 		// errors
 		"saveError": "Save error",
+		// new
+		"showGrid": "Show grid",
 	},
 }
 

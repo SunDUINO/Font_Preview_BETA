@@ -34,7 +34,7 @@
 
     Nowe:
       • 26.11.2022
-        - Dodane tłumaczenie PL/EN
+        - Dodane tłumaczenie PL/EN  -- plik i18n.go
         - Poprawki w układzie GUI
         - Poprawki Slidera ZOOM
         - Dodano tymczasową ikonkę ładowaną z resources/ plik png 256x256
@@ -56,11 +56,12 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "0.0.14" // wersja priogramu
+var versionApp = "0.0.15" // wersja priogramu
 
 var fontData []uint16           // tablica z danymi fontu
 var glyphW, glyphH int          // wymiary pojedynczego znaku
@@ -69,6 +70,7 @@ var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
 var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
 var xShift, yShift int          // globalne przesunięcia widoczne dla całego programu
 var langBtn *widget.Button      // zmienna dla przycisku języka
+var showGrid = true
 
 // Główna funkcja programu  ----------------------------------------------------------------
 // Dodano ikonke
@@ -215,9 +217,19 @@ func main() {
 			rects[y] = make([]*canvas.Rectangle, glyphW)
 			for x := 0; x < glyphW; x++ {
 				xx, yy := x, y
+				// --- stara wersja tworzenia prostokątów
+				//rect := canvas.NewRectangle(color.White)
+				//rect.StrokeColor = color.Gray{Y: 128}
+				//rect.StrokeWidth = 1
+				// --- Nowa wersja tworzenia prostokątów (żeby siatka działała przy starcie edytora)
 				rect := canvas.NewRectangle(color.White)
-				rect.StrokeColor = color.Gray{Y: 128}
-				rect.StrokeWidth = 1
+				if showGrid {
+					rect.StrokeColor = color.Gray{Y: 128}
+					rect.StrokeWidth = 1
+				} else {
+					rect.StrokeWidth = 0
+				}
+
 				rect.Resize(fyne.NewSize(float32(pixelSize), float32(pixelSize)))
 				rect.Move(fyne.NewPos(float32(xx)*float32(pixelSize), float32(yy)*float32(pixelSize)))
 				// inicjalizacja koloru
@@ -251,6 +263,24 @@ func main() {
 			}
 		}
 
+		// Checkbox - pokaż siatkę
+		gridCheck := widget.NewCheck(T("showGrid"), func(val bool) {
+			showGrid = val
+			// Odśwież obramowania wszystkich prostokątów
+			for y := 0; y < glyphH; y++ {
+				for x := 0; x < glyphW; x++ {
+					if showGrid {
+						rects[y][x].StrokeWidth = 1
+						rects[y][x].StrokeColor = color.Gray{Y: 128}
+					} else {
+						rects[y][x].StrokeWidth = 0
+					}
+					rects[y][x].Refresh()
+				}
+			}
+		})
+		gridCheck.SetChecked(showGrid)
+
 		// Funkcja pomocnicza do przesunięcia bitów w wierszu
 		shiftRow := func(row uint16, shift int, width int) uint16 {
 			if shift > 0 {
@@ -267,7 +297,8 @@ func main() {
 			for y := 0; y < glyphH; y++ {
 				newY := y + yShift
 				if newY >= 0 && newY < glyphH {
-					tmp[newY] = shiftRow(fontData[currentIndex*glyphH+y], xShift, glyphW)
+					// KIERUNEK PRZESÓWANIA BITÓW  -xShift  Lewo
+					tmp[newY] = shiftRow(fontData[currentIndex*glyphH+y], -xShift, glyphW)
 				}
 			}
 			for y := 0; y < glyphH; y++ {
@@ -284,7 +315,16 @@ func main() {
 			imgRaster.Refresh() // odświeżenie głównego podglądu
 		}
 
-		// --- Slidery do przsuwania znaku :
+		// --- Slidery do przsuwania znaku
+
+		leftArrow := canvas.NewText("◀️", color.Black)
+		leftArrow.Alignment = fyne.TextAlignCenter
+		leftArrow.Resize(fyne.NewSize(32, 32)) // stały kwadrat
+
+		rightArrow := canvas.NewText("▶️", color.Black)
+		rightArrow.Alignment = fyne.TextAlignCenter
+		rightArrow.Resize(fyne.NewSize(32, 32))
+
 		// Suwak X – przesuwanie znaku w poziomie
 		xSlider := widget.NewSlider(float64(-(glyphW - 1)), float64(glyphW-1))
 		xSlider.Value = 0
@@ -294,7 +334,24 @@ func main() {
 			refreshGrid()
 		}
 
+		// Dodanie strzałek obok suwaka
+		xSliderWithArrows := container.New(
+			layout.NewBorderLayout(nil, nil, leftArrow, rightArrow),
+			leftArrow,
+			rightArrow,
+			xSlider, // slider wypełnia przestrzeń między strzałkami
+		)
 		// Suwak Y – przesuwanie znaku w pionie
+
+		upArrow := canvas.NewText("🔼", color.Black)
+		upArrow.Alignment = fyne.TextAlignCenter
+		upArrow.Resize(fyne.NewSize(32, 32))
+
+		downArrow := canvas.NewText("🔽", color.Black)
+		downArrow.Alignment = fyne.TextAlignCenter
+		downArrow.Resize(fyne.NewSize(32, 32))
+
+		// --- Slider do przsuwania znaku w pionie :
 		ySlider := widget.NewSlider(float64(-(glyphH - 1)), float64(glyphH-1))
 		ySlider.Value = 0
 		ySlider.Step = 1
@@ -302,6 +359,14 @@ func main() {
 			yShift = int(val)
 			refreshGrid()
 		}
+
+		// Dodanie strzałek góra/dół
+		ySliderWithArrows := container.New(
+			layout.NewBorderLayout(nil, nil, upArrow, downArrow),
+			upArrow,
+			downArrow,
+			ySlider, // slider wypełnia przestrzeń między strzałkami
+		)
 
 		// Przycisk zapisu i pokazania znaku w formacie C
 		// Dodano ikonke
@@ -346,7 +411,7 @@ func main() {
 				previewEntry,
 				widget.NewButton(T("close"), func() { previewWin.Close() }),
 			))
-			previewWin.Resize(fyne.NewSize(900, 120))
+			previewWin.Resize(fyne.NewSize(900, 120)) //900x120
 			previewWin.Show()
 
 			editWin.Close()
@@ -355,9 +420,20 @@ func main() {
 		})
 
 		// Umieszczenie gridu i przycisków z suwakami w oknie edycji
-		content := container.NewBorder(nil, container.NewVBox(saveBtn, xSlider, ySlider), nil, nil, editGrid)
+		content := container.NewBorder(
+			nil,
+			container.NewVBox(
+				xSliderWithArrows,
+				ySliderWithArrows,
+				saveBtn,
+				gridCheck, // <- dodany Grid check
+			),
+			nil,
+			nil,
+			editGrid,
+		)
 		editWin.SetContent(content)
-		editWin.Resize(fyne.NewSize(gridWidth+2, gridHeight+100))
+		editWin.Resize(fyne.NewSize(gridWidth+8, gridHeight+200)) // Zmiana rozmiaru okna edycji  (+ pixeli do szerokości i wysokości)
 		editWin.Show()
 	})
 
