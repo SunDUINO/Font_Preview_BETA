@@ -61,7 +61,7 @@ import (
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "0.0.15" // wersja priogramu
+var versionApp = "0.0.16" // wersja priogramu
 
 var fontData []uint16           // tablica z danymi fontu
 var glyphW, glyphH int          // wymiary pojedynczego znaku
@@ -316,7 +316,7 @@ func main() {
 		}
 
 		// --- Slidery do przsuwania znaku
-
+		// --- Strzałki kierunkowe dla Sliderów
 		leftArrow := canvas.NewText("◀️", color.Black)
 		leftArrow.Alignment = fyne.TextAlignCenter
 		leftArrow.Resize(fyne.NewSize(32, 32)) // stały kwadrat
@@ -325,12 +325,29 @@ func main() {
 		rightArrow.Alignment = fyne.TextAlignCenter
 		rightArrow.Resize(fyne.NewSize(32, 32))
 
+		upArrow := canvas.NewText("🔼", color.Black)
+		upArrow.Alignment = fyne.TextAlignCenter
+		upArrow.Resize(fyne.NewSize(32, 32))
+
+		downArrow := canvas.NewText("🔽", color.Black)
+		downArrow.Alignment = fyne.TextAlignCenter
+		downArrow.Resize(fyne.NewSize(32, 32))
+
 		// Suwak X – przesuwanie znaku w poziomie
 		xSlider := widget.NewSlider(float64(-(glyphW - 1)), float64(glyphW-1))
 		xSlider.Value = 0
 		xSlider.Step = 1
 		xSlider.OnChanged = func(val float64) {
 			xShift = int(val)
+			refreshGrid()
+		}
+		// Suwak Y – przesuwanie znaku w pionie
+		// --- Slider do przsuwania znaku w pionie :
+		ySlider := widget.NewSlider(float64(-(glyphH - 1)), float64(glyphH-1))
+		ySlider.Value = 0
+		ySlider.Step = 1
+		ySlider.OnChanged = func(val float64) {
+			yShift = int(val)
 			refreshGrid()
 		}
 
@@ -341,24 +358,6 @@ func main() {
 			rightArrow,
 			xSlider, // slider wypełnia przestrzeń między strzałkami
 		)
-		// Suwak Y – przesuwanie znaku w pionie
-
-		upArrow := canvas.NewText("🔼", color.Black)
-		upArrow.Alignment = fyne.TextAlignCenter
-		upArrow.Resize(fyne.NewSize(32, 32))
-
-		downArrow := canvas.NewText("🔽", color.Black)
-		downArrow.Alignment = fyne.TextAlignCenter
-		downArrow.Resize(fyne.NewSize(32, 32))
-
-		// --- Slider do przsuwania znaku w pionie :
-		ySlider := widget.NewSlider(float64(-(glyphH - 1)), float64(glyphH-1))
-		ySlider.Value = 0
-		ySlider.Step = 1
-		ySlider.OnChanged = func(val float64) {
-			yShift = int(val)
-			refreshGrid()
-		}
 
 		// Dodanie strzałek góra/dół
 		ySliderWithArrows := container.New(
