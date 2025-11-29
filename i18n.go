@@ -53,8 +53,8 @@ var Lang = map[string]map[string]string{
 		"saveError": "Save error",
 		// new
 		"showGrid": "Show grid",
-		"undo":     "Undo",
-		"redo":     "Redo",
+		"undo":     "⬅️ Undo",
+		"redo":     "⬅️ Redo",
 	},
 }
 
