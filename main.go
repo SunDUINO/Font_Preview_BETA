@@ -1,7 +1,7 @@
 /* ============================================================================
 
     Font Preview & Editor Tool
-    Wersja: 0.0.13
+    Wersja: 1.0.1
     Autor: Lothar Team / SunRiver
            Lothar Team / Gufim
     Data: listopad 2025
@@ -61,6 +61,7 @@ import (
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
+
 var versionApp = "1.0.2"      // wersja programu
 var editWin fyne.Window       // okno edycji znaku (referencja globalna)
 var editGrid *fyne.Container  // kontener z prostokątami w oknie edycji
