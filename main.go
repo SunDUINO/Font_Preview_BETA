@@ -44,49 +44,33 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
+	//"bufio"
+	//"fmt"
 	"image/color"
-	"regexp"
+	//"regexp"
 	"strconv"
-	"strings"
+	//"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
+	//"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "1.0.0" // wersja priogramu
+var versionApp = "1.0.2"      // wersja programu
+var editWin fyne.Window       // okno edycji znaku (referencja globalna)
+var editGrid *fyne.Container  // kontener z prostokątami w oknie edycji
+var sliderInternalUpdate bool // Flaga blokująca pushUndo podczas aktualizacji sliderów
+var xShift, yShift int        // globalne przesunięcia widoczne dla całego programu
+var langBtn *widget.Button    // zmienna dla przycisku języka
+var showGrid = true           // zmienna dla siatki w oknie edycji
 
-var fontData []uint16           // tablica z danymi fontu
-var glyphW, glyphH int          // wymiary pojedynczego znaku
-var editWin fyne.Window         // okno edycji znaku (referencja globalna)
-var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
 var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
-var sliderInternalUpdate bool   // Flaga blokująca pushUndo podczas aktualizacji sliderów
 
-// Stos UNDO / REDO trzyma pełne stany glifu + przesunięcia
-var undoStack []GlyphState
-var redoStack []GlyphState
-
-var xShift, yShift int     // globalne przesunięcia widoczne dla całego programu
-var langBtn *widget.Button // zmienna dla przycisku języka
-var showGrid = true
-
-// GlyphState - Pełny zapis stanu glifu + przesunięć X/Y (do UNDO/REDO)
-type GlyphState struct {
-	Data    []uint16
-	OffsetX int
-	OffsetY int
-}
-
-// Główna funkcja programu  ----------------------------------------------------------------
-// Dodano ikonke
 func main() {
 
 	a := app.NewWithID("com.lothar-team.fontpreview") // identyfikator programu
@@ -148,21 +132,8 @@ func main() {
 	slider.OnChanged = func(val float64) {
 		currentIndex = int(val)
 		label.SetText(T("glyph") + ": " + strconv.Itoa(currentIndex))
-		imgRaster.Refresh() // odświeżenie podglądu
-		// Jeśli okno edycji jest otwarte, zaktualizuj jego prostokąty
-		if editWin != nil && editGrid != nil && len(rects) == glyphH {
-			for y := 0; y < glyphH; y++ {
-				for x := 0; x < glyphW; x++ {
-					row := fontData[currentIndex*glyphH+y]
-					if (row>>(glyphW-1-x))&1 != 0 {
-						rects[y][x].FillColor = color.Black
-					} else {
-						rects[y][x].FillColor = color.White
-					}
-					rects[y][x].Refresh()
-				}
-			}
-		}
+		imgRaster.Refresh()
+		updateEditorGrid(currentIndex, imgRaster)
 	}
 
 	// Slider zmiany skali
@@ -184,10 +155,8 @@ func main() {
 			if rc == nil {
 				return
 			}
-			// -- USTAWIENIE NAZWY WCZYTANEGO PLIKU
 			loadedFileLabel.SetText(T("loaded") + rc.URI().Name())
-
-			defer func() { _ = rc.Close() }() // jawne ignorowanie błędu
+			defer func() { _ = rc.Close() }()
 			nums, gw, gh, err := parseHeaderWithSize(rc)
 			if err != nil {
 				dialog.ShowError(err, w)
@@ -198,12 +167,10 @@ func main() {
 			glyphW = gw
 			glyphH = gh
 
-			// Aktualizacja slidera
 			slider.Max = float64(len(fontData)/glyphH - 1)
 			currentIndex = 0
 			slider.Value = 0
 			label.SetText(T("glyph") + ": 0")
-
 			imgRaster.SetMinSize(fyne.NewSize(float32(glyphW*scale), float32(glyphH*scale)))
 			imgRaster.Refresh()
 		}, w)
@@ -211,344 +178,12 @@ func main() {
 
 	// Przycisk edycji znaku
 	editBtn := widget.NewButton(T("editGlyph"), func() {
-		if len(fontData) == 0 || glyphW == 0 || glyphH == 0 {
-			return
-		}
-
-		// Tworzymy okno edycji aktualnego znaku
-		// Dodano ikonke
-		editWin = fyne.CurrentApp().NewWindow(fmt.Sprintf(T("editWindowTitle"), currentIndex))
-
-		pixelSize := 20.0
-		gridWidth := float32(float64(glyphW) * pixelSize)
-		gridHeight := float32(float64(glyphH) * pixelSize)
-
-		// Kontener bez layoutu
-		editGrid = container.NewWithoutLayout()
-		rects = make([][]*canvas.Rectangle, glyphH)
-		for y := 0; y < glyphH; y++ {
-			rects[y] = make([]*canvas.Rectangle, glyphW)
-			for x := 0; x < glyphW; x++ {
-				xx, yy := x, y
-				// --- stara wersja tworzenia prostokątów
-				//rect := canvas.NewRectangle(color.White)
-				//rect.StrokeColor = color.Gray{Y: 128}
-				//rect.StrokeWidth = 1
-				// --- Nowa wersja tworzenia prostokątów (żeby siatka działała przy starcie edytora)
-				rect := canvas.NewRectangle(color.White)
-				if showGrid {
-					rect.StrokeColor = color.Gray{Y: 128}
-					rect.StrokeWidth = 1
-				} else {
-					rect.StrokeWidth = 0
-				}
-
-				rect.Resize(fyne.NewSize(float32(pixelSize), float32(pixelSize)))
-				rect.Move(fyne.NewPos(float32(xx)*float32(pixelSize), float32(yy)*float32(pixelSize)))
-				// inicjalizacja koloru
-				row := fontData[currentIndex*glyphH+yy]
-				if (row>>(glyphW-1-xx))&1 != 0 {
-					rect.FillColor = color.Black
-				}
-				rects[yy][xx] = rect
-				editGrid.Add(rect)
-
-				// Klikalny przycisk nad prostokątem
-				btn := widget.NewButton("", func(xx, yy int) func() {
-					return func() {
-						pushUndo(currentIndex) // Dodane odśąwieżanie UNDO
-						row := fontData[currentIndex*glyphH+yy]
-						row ^= 1 << (glyphW - 1 - xx)
-						fontData[currentIndex*glyphH+yy] = row
-						// Aktualizacja prostokąta w edycji
-						if (row>>(glyphW-1-xx))&1 != 0 {
-							rects[yy][xx].FillColor = color.Black
-						} else {
-							rects[yy][xx].FillColor = color.White
-						}
-						rects[yy][xx].Refresh()
-						imgRaster.Refresh() // odświeżenie głównego podglądu
-					}
-				}(xx, yy))
-				btn.Importance = widget.LowImportance
-				btn.Resize(fyne.NewSize(float32(pixelSize), float32(pixelSize)))
-				btn.Move(fyne.NewPos(float32(xx)*float32(pixelSize), float32(yy)*float32(pixelSize)))
-				editGrid.Add(btn)
-			}
-		}
-
-		// Checkbox - pokaż siatkę
-		gridCheck := widget.NewCheck(T("showGrid"), func(val bool) {
-			showGrid = val
-			// Odśwież obramowania wszystkich prostokątów
-			for y := 0; y < glyphH; y++ {
-				for x := 0; x < glyphW; x++ {
-					if showGrid {
-						rects[y][x].StrokeWidth = 1
-						rects[y][x].StrokeColor = color.Gray{Y: 128}
-					} else {
-						rects[y][x].StrokeWidth = 0
-					}
-					rects[y][x].Refresh()
-				}
-			}
-		})
-		gridCheck.SetChecked(showGrid)
-
-		// Funkcja pomocnicza do przesunięcia bitów w wierszu
-		shiftRow := func(row uint16, shift int, width int) uint16 {
-			if shift > 0 {
-				return (row << shift) & ((1 << width) - 1)
-			} else if shift < 0 {
-				return row >> (-shift)
-			}
-			return row
-		}
-
-		// Funkcja odświeżająca prostokąty w edycji z uwzględnieniem przesunięcia
-		refreshGrid := func() {
-			tmp := make([]uint16, glyphH)
-			for y := 0; y < glyphH; y++ {
-				newY := y + yShift
-				if newY >= 0 && newY < glyphH {
-					// KIERUNEK PRZESÓWANIA BITÓW  -xShift  Lewo
-					tmp[newY] = shiftRow(fontData[currentIndex*glyphH+y], -xShift, glyphW)
-				}
-			}
-			for y := 0; y < glyphH; y++ {
-				row := tmp[y]
-				for x := 0; x < glyphW; x++ {
-					if (row>>(glyphW-1-x))&1 != 0 {
-						rects[y][x].FillColor = color.Black
-					} else {
-						rects[y][x].FillColor = color.White
-					}
-					rects[y][x].Refresh()
-				}
-			}
-			imgRaster.Refresh() // odświeżenie głównego podglądu
-		}
-
-		// --- Slidery do przsuwania znaku
-		// --- Strzałki kierunkowe dla Sliderów
-		leftArrow := canvas.NewText("◀️", color.Black)
-		leftArrow.Alignment = fyne.TextAlignCenter
-		leftArrow.Resize(fyne.NewSize(32, 32)) // stały kwadrat
-
-		rightArrow := canvas.NewText("▶️", color.Black)
-		rightArrow.Alignment = fyne.TextAlignCenter
-		rightArrow.Resize(fyne.NewSize(32, 32))
-
-		upArrow := canvas.NewText("🔼", color.Black)
-		upArrow.Alignment = fyne.TextAlignCenter
-		upArrow.Resize(fyne.NewSize(32, 32))
-
-		downArrow := canvas.NewText("🔽", color.Black)
-		downArrow.Alignment = fyne.TextAlignCenter
-		downArrow.Resize(fyne.NewSize(32, 32))
-
-		// Suwak X – przesuwanie znaku w poziomie
-		xSlider := widget.NewSlider(float64(-(glyphW - 1)), float64(glyphW-1))
-		xSlider.Value = 0
-		xSlider.Step = 1
-		//xSlider.OnChanged = func(val float64) {
-		//	xShift = int(val)
-		//	refreshGrid()
-		//}
-		xSlider.OnChanged = func(val float64) {
-			if sliderInternalUpdate {
-				return
-			}
-
-			pushUndo(currentIndex)
-			xShift = int(val)
-			refreshGrid()
-		}
-
-		// Suwak Y – przesuwanie znaku w pionie
-		// --- Slider do przsuwania znaku w pionie :
-		ySlider := widget.NewSlider(float64(-(glyphH - 1)), float64(glyphH-1))
-		ySlider.Value = 0
-		ySlider.Step = 1
-		//ySlider.OnChanged = func(val float64) {
-		//	yShift = int(val)
-		//	refreshGrid()
-		//}
-		ySlider.OnChanged = func(val float64) {
-			if sliderInternalUpdate {
-				return
-			}
-
-			pushUndo(currentIndex)
-			yShift = int(val)
-			refreshGrid()
-		}
-
-		// Dodanie strzałek obok suwaka
-		xSliderWithArrows := container.New(
-			layout.NewBorderLayout(nil, nil, leftArrow, rightArrow),
-			leftArrow,
-			rightArrow,
-			xSlider, // slider wypełnia przestrzeń między strzałkami
-		)
-
-		// Dodanie strzałek góra/dół
-		ySliderWithArrows := container.New(
-			layout.NewBorderLayout(nil, nil, upArrow, downArrow),
-			upArrow,
-			downArrow,
-			ySlider, // slider wypełnia przestrzeń między strzałkami
-		)
-		// Przyciski UNDO /REDO
-		undoBtn := widget.NewButton(T("undo"), func() {
-			if undo(currentIndex) {
-				sliderInternalUpdate = true
-				xSlider.SetValue(float64(xShift))
-				ySlider.SetValue(float64(yShift))
-				sliderInternalUpdate = false
-
-				refreshGrid()
-			}
-		})
-
-		redoBtn := widget.NewButton(T("redo"), func() {
-			if redo(currentIndex) {
-				sliderInternalUpdate = true
-				xSlider.SetValue(float64(xShift))
-				ySlider.SetValue(float64(yShift))
-				sliderInternalUpdate = false
-
-				refreshGrid()
-			}
-		})
-
-		// Przycisk zapisu i pokazania znaku w formacie C
-		// Dodano ikonke
-		saveBtn := widget.NewButton(T("save"), func() {
-
-			// Zastosowanie przesunięć X i Y do fontData
-			if xShift != 0 || yShift != 0 {
-				// przygotuj tymczasowy bufor
-				tmp := make([]uint16, glyphH)
-
-				// przesuwanie w pionie
-				for y := 0; y < glyphH; y++ {
-					newY := y + yShift
-					if newY >= 0 && newY < glyphH {
-						tmp[newY] = shiftRow(fontData[currentIndex*glyphH+y], xShift, glyphW)
-					}
-				}
-
-				// przepisanie przesuniętych danych do fontData
-				for y := 0; y < glyphH; y++ {
-					fontData[currentIndex*glyphH+y] = tmp[y]
-				}
-			}
-
-			var sb strings.Builder
-			sb.WriteString(T("editedCharAscii"))
-			sb.WriteString(fmt.Sprintf("'%c'\n", currentIndex+32))
-			for y := 0; y < glyphH; y++ {
-				row := fontData[currentIndex*glyphH+y]
-				sb.WriteString(fmt.Sprintf("0x%04X", row))
-				if y < glyphH-1 {
-					sb.WriteString(",")
-				}
-			}
-			sb.WriteString(fmt.Sprintf(", // '%c'\n", currentIndex+32))
-
-			previewWin := fyne.CurrentApp().NewWindow(fmt.Sprintf(T("previewTitle"), currentIndex))
-			previewEntry := widget.NewMultiLineEntry()
-			previewEntry.SetText(sb.String())
-			previewEntry.Wrapping = fyne.TextWrapBreak
-			previewWin.SetContent(container.NewVBox(
-				previewEntry,
-				widget.NewButton(T("close"), func() { previewWin.Close() }),
-			))
-			previewWin.Resize(fyne.NewSize(900, 120)) //900x120
-			previewWin.Show()
-
-			editWin.Close()
-			editWin = nil
-			imgRaster.Refresh()
-		})
-
-		// Umieszczenie gridu i przycisków z suwakami w oknie edycji
-		content := container.NewBorder(
-			nil,
-			container.NewVBox(
-				xSliderWithArrows,
-				ySliderWithArrows,
-				saveBtn,
-				container.NewHBox(
-					undoBtn,
-					redoBtn,
-					gridCheck,
-				),
-			),
-			nil,
-			nil,
-			editGrid,
-		)
-		editWin.SetContent(content)
-		editWin.Resize(fyne.NewSize(gridWidth+8, gridHeight+200)) // Zmiana rozmiaru okna edycji  (+ pixeli do szerokości i wysokości)
-		editWin.Show()
+		openEditWindow(currentIndex, imgRaster)
 	})
 
+	// Przycisk zapisu całego fontu
 	saveAllBtn := widget.NewButton(T("saveFont"), func() {
-		if len(fontData) == 0 {
-			dialog.ShowInformation(T("noData"), T("loadFirst"), w)
-			return
-		}
-
-		dialog.ShowFileSave(func(uc fyne.URIWriteCloser, _ error) {
-			if uc == nil {
-				return
-			}
-
-			defer func() {
-				_ = uc.Close()
-			}()
-
-			var sb strings.Builder
-
-			// Nagłówek
-			sb.WriteString(fmt.Sprintf(T("generatedAuto"), versionApp))
-			sb.WriteString(T("charSize"))
-			sb.WriteString(fmt.Sprintf("%dx%d\n\n", glyphW, glyphH))
-
-			// Nazwa tablicy
-			sb.WriteString("const uint16_t FONT_" + strconv.Itoa(glyphW) + "x" + strconv.Itoa(glyphH) + "[] = {\n")
-
-			// Zawartość tablicy
-			total := len(fontData) / glyphH
-			for i := 0; i < total; i++ {
-				sb.WriteString("   ")
-
-				for y := 0; y < glyphH; y++ {
-					row := fontData[i*glyphH+y]
-					sb.WriteString(fmt.Sprintf("0x%04X,", row))
-				}
-
-				// komentarz z symbolem ASCII
-				ch := i + 32
-				if ch >= 32 && ch <= 126 {
-					sb.WriteString(fmt.Sprintf("  // '%c'", rune(ch)))
-				} else {
-					sb.WriteString("  //")
-				}
-				sb.WriteString("\n")
-			}
-
-			sb.WriteString("};\n")
-
-			// Zapis
-			if _, err := uc.Write([]byte(sb.String())); err != nil {
-				fmt.Println(T("saveError")+": ", err)
-			}
-
-			dialog.ShowInformation(T("saved"), T("saved"), w)
-		}, w)
+		saveFontDialog(w)
 	})
 
 	// ---> przycisk zmiany jezyka PL/EN ---
@@ -560,15 +195,7 @@ func main() {
 			CurrentLang = "PL"
 			langBtn.SetText("🇬🇧")
 		}
-
-		// Aktualizacja wszystkich tekstów GUI
-		btn.SetText(T("chooseFile"))
-		loadedFileLabel.SetText(T("noFile"))
-		label.SetText(T("glyph") + ": " + strconv.Itoa(currentIndex))
-		editBtn.SetText(T("editGlyph"))
-		scaleLabel.SetText(T("scale") + ": " + strconv.Itoa(scale))
-		saveAllBtn.SetText(T("saveFont"))
-
+		updateMainTexts(btn, loadedFileLabel, label, editBtn, scaleLabel, saveAllBtn, currentIndex, scale)
 	})
 
 	// Układ GUI głównego okna
@@ -576,126 +203,24 @@ func main() {
 		saveAllBtn,
 		langBtn,
 	)
-	// Zmiana kontenera
+
 	content := container.NewBorder(
-		nil,        // nic u góry
-		bottomBtns, // przyklejone do dołu
-		nil,        // brak po lewej
-		nil,        // brak po prawej
+		nil,
+		bottomBtns,
+		nil,
+		nil,
 		container.NewVBox(
-			btn, // Wczytaj plik
+			btn,
 			loadedFileLabel,
 			label,
 			slider,
 			editBtn,
 			scaleLabel,
 			scaleSlider,
-			container.NewCenter(imgRaster), // glif wyśrodkowany
+			container.NewCenter(imgRaster),
 		),
 	)
 
 	w.SetContent(content)
 	w.ShowAndRun()
-}
-
-// parseHeaderWithSize odczytuje font z pliku .h i wykrywa wymiary znaków
-func parseHeaderWithSize(r fyne.URIReadCloser) ([]uint16, int, int, error) {
-	sc := bufio.NewScanner(r)
-	hexRE := regexp.MustCompile(`0x[0-9A-Fa-f]+`)
-	nameRE := regexp.MustCompile(`(?i)uint16_t\s+(\w+)`) // nazwa tablicy
-
-	var nums []uint16
-	var glyphW, glyphH int
-
-	for sc.Scan() {
-		line := sc.Text()
-
-		// Wykrycie wymiarów z nazwy tablicy np. "ALGER_16x16"
-		if glyphW == 0 || glyphH == 0 {
-			match := nameRE.FindStringSubmatch(line)
-			if len(match) > 1 {
-				name := match[1]
-				parts := strings.Split(name, "_")
-				if len(parts) > 1 {
-					sizePart := parts[len(parts)-1]
-					dims := strings.Split(sizePart, "x")
-					if len(dims) == 2 {
-						w, err1 := strconv.Atoi(dims[0])
-						h, err2 := strconv.Atoi(dims[1])
-						if err1 == nil && err2 == nil {
-							glyphW = w
-							glyphH = h
-						}
-					}
-				}
-			}
-		}
-
-		// Parsowanie liczb hex do tablicy
-		matches := hexRE.FindAllString(line, -1)
-		for _, m := range matches {
-			v, err := strconv.ParseUint(m, 0, 16)
-			if err != nil {
-				return nil, 0, 0, err
-			}
-			nums = append(nums, uint16(v))
-		}
-	}
-
-	return nums, glyphW, glyphH, sc.Err()
-}
-
-// Zapisuje aktualny stan glifu i offsetów
-func snapshotState(index, h int) GlyphState {
-	snap := make([]uint16, h)
-	copy(snap, fontData[index*h:index*h+h])
-	return GlyphState{
-		Data:    snap,
-		OffsetX: xShift,
-		OffsetY: yShift,
-	}
-}
-
-// Przywraca stan glifu i offsetów
-func restoreState(index, h int, state GlyphState) {
-	copy(fontData[index*h:index*h+h], state.Data)
-	xShift = state.OffsetX
-	yShift = state.OffsetY
-}
-
-// zapisywanie stanu aktualnie edytowanego glifu do stosu UNDO,
-func pushUndo(index int) {
-	if glyphH == 0 {
-		return
-	}
-	undoStack = append(undoStack, snapshotState(index, glyphH))
-	redoStack = nil
-}
-
-// Funkcja Undo
-func undo(index int) bool {
-	if len(undoStack) == 0 {
-		return false
-	}
-
-	last := undoStack[len(undoStack)-1]
-	undoStack = undoStack[:len(undoStack)-1]
-
-	redoStack = append(redoStack, snapshotState(index, glyphH))
-	restoreState(index, glyphH, last)
-	return true
-}
-
-// Funkcja redo
-func redo(index int) bool {
-	if len(redoStack) == 0 {
-		return false
-	}
-
-	last := redoStack[len(redoStack)-1]
-	redoStack = redoStack[:len(redoStack)-1]
-
-	undoStack = append(undoStack, snapshotState(index, glyphH))
-	restoreState(index, glyphH, last)
-	return true
 }
