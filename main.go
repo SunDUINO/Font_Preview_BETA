@@ -1,7 +1,7 @@
 /* ============================================================================
 
     Font Preview & Editor Tool
-    Wersja: 0.0.13
+    Wersja: 1.0.1
     Autor: Lothar Team / SunRiver
            Lothar Team / Gufim
     Data: listopad 2025
@@ -61,7 +61,7 @@ import (
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "1.0.0" // wersja priogramu
+var versionApp = "1.0.1" // wersja priogramu
 
 var fontData []uint16           // tablica z danymi fontu
 var glyphW, glyphH int          // wymiary pojedynczego znaku
