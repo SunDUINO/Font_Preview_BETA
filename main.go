@@ -33,36 +33,35 @@
       • Zmiany są widoczne natychmiast w obu oknach.
 
     Nowe:
-      • 26.11.2022
+      • 26.11.2025
         - Dodane tłumaczenie PL/EN  -- plik i18n.go
         - Poprawki w układzie GUI
         - Poprawki Slidera ZOOM
         - Dodano tymczasową ikonkę ładowaną z resources/ plik png 256x256
+      • 29.11.2025
+        - Dodano przyciski Undo / REDO
+        - refaktoryzacja kodu -- teraz jest czytelniej
 
 =========================================================================== */
 
 package main
 
 import (
-	//"bufio"
-	//"fmt"
 	"image/color"
-	//"regexp"
+
 	"strconv"
-	//"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	//"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
 
-var versionApp = "1.0.3"      // wersja programu
+var versionApp = "1.0.4"      // wersja programu
 var editWin fyne.Window       // okno edycji znaku (referencja globalna)
 var editGrid *fyne.Container  // kontener z prostokątami w oknie edycji
 var sliderInternalUpdate bool // Flaga blokująca pushUndo podczas aktualizacji sliderów
