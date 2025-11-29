@@ -1,6 +1,6 @@
 /* ============================================================================
 
-    Editor Glifu
+    Edytor Glifu
     Wszystkie funkcje związane z oknem edycji pojedynczego znaku
     – prostokąty pikseli, kliknięcia, przesunięcia, UNDO/REDO, zapisywanie glifu
 

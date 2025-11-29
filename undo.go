@@ -1,3 +1,12 @@
+/* ============================================================================
+
+    Funkcje Undo i REDO
+    Wszystkie funkcje związane z oknem edycji pojedynczego znaku
+    – umozliwiają cofanie i ponawianie zmian w edycji pikseli siatki oraz
+      przesunięć sliderem X i Y
+
+=========================================================================== */
+
 package main
 
 // Stosy UNDO / REDO

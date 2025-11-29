@@ -62,7 +62,7 @@ import (
 
 // -- Zmienne globalne -------------------------------------------------------------------
 
-var versionApp = "1.0.2"      // wersja programu
+var versionApp = "1.0.3"      // wersja programu
 var editWin fyne.Window       // okno edycji znaku (referencja globalna)
 var editGrid *fyne.Container  // kontener z prostokątami w oknie edycji
 var sliderInternalUpdate bool // Flaga blokująca pushUndo podczas aktualizacji sliderów
