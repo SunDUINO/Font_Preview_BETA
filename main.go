@@ -61,16 +61,29 @@ import (
 )
 
 // -- Zmienne globalne -------------------------------------------------------------------
-var versionApp = "0.0.16" // wersja priogramu
+var versionApp = "1.0.0" // wersja priogramu
 
 var fontData []uint16           // tablica z danymi fontu
 var glyphW, glyphH int          // wymiary pojedynczego znaku
 var editWin fyne.Window         // okno edycji znaku (referencja globalna)
 var editGrid *fyne.Container    // kontener z prostokątami w oknie edycji
 var rects [][]*canvas.Rectangle // prostokąty reprezentujące piksele w edycji
-var xShift, yShift int          // globalne przesunięcia widoczne dla całego programu
-var langBtn *widget.Button      // zmienna dla przycisku języka
+var sliderInternalUpdate bool   // Flaga blokująca pushUndo podczas aktualizacji sliderów
+
+// Stos UNDO / REDO trzyma pełne stany glifu + przesunięcia
+var undoStack []GlyphState
+var redoStack []GlyphState
+
+var xShift, yShift int     // globalne przesunięcia widoczne dla całego programu
+var langBtn *widget.Button // zmienna dla przycisku języka
 var showGrid = true
+
+// GlyphState - Pełny zapis stanu glifu + przesunięć X/Y (do UNDO/REDO)
+type GlyphState struct {
+	Data    []uint16
+	OffsetX int
+	OffsetY int
+}
 
 // Główna funkcja programu  ----------------------------------------------------------------
 // Dodano ikonke
@@ -243,6 +256,7 @@ func main() {
 				// Klikalny przycisk nad prostokątem
 				btn := widget.NewButton("", func(xx, yy int) func() {
 					return func() {
+						pushUndo(currentIndex) // Dodane odśąwieżanie UNDO
 						row := fontData[currentIndex*glyphH+yy]
 						row ^= 1 << (glyphW - 1 - xx)
 						fontData[currentIndex*glyphH+yy] = row
@@ -337,16 +351,35 @@ func main() {
 		xSlider := widget.NewSlider(float64(-(glyphW - 1)), float64(glyphW-1))
 		xSlider.Value = 0
 		xSlider.Step = 1
+		//xSlider.OnChanged = func(val float64) {
+		//	xShift = int(val)
+		//	refreshGrid()
+		//}
 		xSlider.OnChanged = func(val float64) {
+			if sliderInternalUpdate {
+				return
+			}
+
+			pushUndo(currentIndex)
 			xShift = int(val)
 			refreshGrid()
 		}
+
 		// Suwak Y – przesuwanie znaku w pionie
 		// --- Slider do przsuwania znaku w pionie :
 		ySlider := widget.NewSlider(float64(-(glyphH - 1)), float64(glyphH-1))
 		ySlider.Value = 0
 		ySlider.Step = 1
+		//ySlider.OnChanged = func(val float64) {
+		//	yShift = int(val)
+		//	refreshGrid()
+		//}
 		ySlider.OnChanged = func(val float64) {
+			if sliderInternalUpdate {
+				return
+			}
+
+			pushUndo(currentIndex)
 			yShift = int(val)
 			refreshGrid()
 		}
@@ -366,6 +399,28 @@ func main() {
 			downArrow,
 			ySlider, // slider wypełnia przestrzeń między strzałkami
 		)
+		// Przyciski UNDO /REDO
+		undoBtn := widget.NewButton(T("undo"), func() {
+			if undo(currentIndex) {
+				sliderInternalUpdate = true
+				xSlider.SetValue(float64(xShift))
+				ySlider.SetValue(float64(yShift))
+				sliderInternalUpdate = false
+
+				refreshGrid()
+			}
+		})
+
+		redoBtn := widget.NewButton(T("redo"), func() {
+			if redo(currentIndex) {
+				sliderInternalUpdate = true
+				xSlider.SetValue(float64(xShift))
+				ySlider.SetValue(float64(yShift))
+				sliderInternalUpdate = false
+
+				refreshGrid()
+			}
+		})
 
 		// Przycisk zapisu i pokazania znaku w formacie C
 		// Dodano ikonke
@@ -425,7 +480,11 @@ func main() {
 				xSliderWithArrows,
 				ySliderWithArrows,
 				saveBtn,
-				gridCheck, // <- dodany Grid check
+				container.NewHBox(
+					undoBtn,
+					redoBtn,
+					gridCheck,
+				),
 			),
 			nil,
 			nil,
@@ -584,4 +643,59 @@ func parseHeaderWithSize(r fyne.URIReadCloser) ([]uint16, int, int, error) {
 	}
 
 	return nums, glyphW, glyphH, sc.Err()
+}
+
+// Zapisuje aktualny stan glifu i offsetów
+func snapshotState(index, h int) GlyphState {
+	snap := make([]uint16, h)
+	copy(snap, fontData[index*h:index*h+h])
+	return GlyphState{
+		Data:    snap,
+		OffsetX: xShift,
+		OffsetY: yShift,
+	}
+}
+
+// Przywraca stan glifu i offsetów
+func restoreState(index, h int, state GlyphState) {
+	copy(fontData[index*h:index*h+h], state.Data)
+	xShift = state.OffsetX
+	yShift = state.OffsetY
+}
+
+// zapisywanie stanu aktualnie edytowanego glifu do stosu UNDO,
+func pushUndo(index int) {
+	if glyphH == 0 {
+		return
+	}
+	undoStack = append(undoStack, snapshotState(index, glyphH))
+	redoStack = nil
+}
+
+// Funkcja Undo
+func undo(index int) bool {
+	if len(undoStack) == 0 {
+		return false
+	}
+
+	last := undoStack[len(undoStack)-1]
+	undoStack = undoStack[:len(undoStack)-1]
+
+	redoStack = append(redoStack, snapshotState(index, glyphH))
+	restoreState(index, glyphH, last)
+	return true
+}
+
+// Funkcja redo
+func redo(index int) bool {
+	if len(redoStack) == 0 {
+		return false
+	}
+
+	last := redoStack[len(redoStack)-1]
+	redoStack = redoStack[:len(redoStack)-1]
+
+	undoStack = append(undoStack, snapshotState(index, glyphH))
+	restoreState(index, glyphH, last)
+	return true
 }

@@ -27,6 +27,8 @@ var Lang = map[string]map[string]string{
 		"saveError": "Błąd zapisu",
 		// nowe
 		"showGrid": "Pokaż siatkę",
+		"undo":     "Cofnij",
+		"redo":     "Ponów",
 	},
 	"EN": {
 		"chooseFile":      "  🗂️  Choose .h file",
@@ -51,6 +53,8 @@ var Lang = map[string]map[string]string{
 		"saveError": "Save error",
 		// new
 		"showGrid": "Show grid",
+		"undo":     "Undo",
+		"redo":     "Redo",
 	},
 }
 
